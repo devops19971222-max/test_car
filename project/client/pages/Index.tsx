@@ -3,27 +3,35 @@ import { Button } from "@/components/ui/button";
 import { Navigation } from "@/components/Navigation";
 import { Car, FileText, CheckCircle } from "lucide-react";
 
+// Display prices for car cards. Authoritative pricing lives on the server
+// in server/routes/stripe.ts (CAR_CATALOG). Keep these two in sync.
 const cars = [
   {
     id: 1,
-    name: "Chevy Tahoe",
-    type: "SUV",
-    price: 295,
-    image: "https://images.unsplash.com/photo-1606611013016-969c19d4eeb9?w=500&h=400&fit=crop",
+    name: "Chrysler 200",
+    type: "Sedan",
+    weeklyPrice: 349,
+    monthlyPrice: 1199,
+    image:
+      "https://images.unsplash.com/photo-1552820728-8ac41f1ce891?w=500&h=400&fit=crop",
   },
   {
     id: 2,
-    name: "Toyota Corolla",
-    type: "Sedan",
-    price: 249,
-    image: "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=500&h=400&fit=crop",
+    name: "Chevy Camaro",
+    type: "Coupe",
+    weeklyPrice: 399,
+    monthlyPrice: 1349,
+    image:
+      "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=500&h=400&fit=crop",
   },
   {
     id: 3,
-    name: "Hyundai Elantra",
-    type: "Sedan",
-    price: 225,
-    image: "https://images.unsplash.com/photo-1552820728-8ac41f1ce891?w=500&h=400&fit=crop",
+    name: "Chevy Tahoe",
+    type: "SUV",
+    weeklyPrice: 479,
+    monthlyPrice: 1599,
+    image:
+      "https://images.unsplash.com/photo-1606611013016-969c19d4eeb9?w=500&h=400&fit=crop",
   },
 ];
 
@@ -134,6 +142,7 @@ export default function Index() {
             {cars.map((car) => (
               <div
                 key={car.id}
+                data-testid={`car-card-${car.id}`}
                 className="bg-white border border-border rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
               >
                 <div className="relative h-64 bg-gray-100">
@@ -148,14 +157,34 @@ export default function Index() {
                     {car.name}
                   </h3>
                   <p className="text-sm text-foreground/60 mb-4">{car.type}</p>
-                  <div className="flex items-baseline gap-2 mb-6">
-                    <span className="text-3xl font-bold text-accent">
-                      ${car.price}
-                    </span>
-                    <span className="text-foreground/60">/week</span>
+
+                  {/* Weekly + Monthly pricing */}
+                  <div className="space-y-1 mb-6">
+                    <div className="flex items-baseline gap-2">
+                      <span
+                        className="text-2xl font-bold text-accent"
+                        data-testid={`car-weekly-price-${car.id}`}
+                      >
+                        ${car.weeklyPrice}
+                      </span>
+                      <span className="text-foreground/60 text-sm">/week</span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span
+                        className="text-2xl font-bold text-accent"
+                        data-testid={`car-monthly-price-${car.id}`}
+                      >
+                        ${car.monthlyPrice}
+                      </span>
+                      <span className="text-foreground/60 text-sm">/month</span>
+                    </div>
                   </div>
+
                   <Link to={`/vehicle/${car.id}`}>
-                    <Button className="w-full bg-foreground hover:bg-foreground/90 text-white">
+                    <Button
+                      data-testid={`car-view-details-${car.id}`}
+                      className="w-full bg-foreground hover:bg-foreground/90 text-white"
+                    >
                       View Details
                     </Button>
                   </Link>
