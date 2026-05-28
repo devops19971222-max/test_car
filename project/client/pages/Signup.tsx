@@ -80,29 +80,67 @@ export default function Signup() {
     setFormData((prev) => ({ ...prev, [fileType]: file }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitApplication = async () => {
     setErrorMsg(null);
 
+    // Validate required fields in JS so we control error messaging
     if (!hasSelection) {
       setErrorMsg(
         "Please pick a car and a plan first (Weekly or Monthly) from the vehicle page.",
       );
       return;
     }
+    if (!formData.fullName.trim()) {
+      setErrorMsg("Please enter your full name.");
+      return;
+    }
+    if (!formData.email.trim()) {
+      setErrorMsg("Please enter your email address.");
+      return;
+    }
+    if (!formData.phone.trim()) {
+      setErrorMsg("Please enter your phone number.");
+      return;
+    }
+    if (!formData.licenseFile) {
+      setErrorMsg("Please upload a photo of your driver license.");
+      return;
+    }
+    if (!formData.idFile) {
+      setErrorMsg("Please upload a photo of your ID.");
+      return;
+    }
 
     setSubmitting(true);
+    console.log("[booking] Submitting application…", {
+      carId,
+      plan,
+      price,
+      cloudinary: Boolean(CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET),
+      formspree: Boolean(FORMSPREE_ENDPOINT),
+    });
+
     try {
       // 1) Optional: upload license + ID to Cloudinary if configured
       let licenseUrl: string | null = null;
       let idUrl: string | null = null;
       if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
-        if (formData.licenseFile) {
+        try {
+          console.log("[booking] Uploading license to Cloudinary…");
           licenseUrl = await uploadToCloudinary(formData.licenseFile);
-        }
-        if (formData.idFile) {
+          console.log("[booking] Uploading ID to Cloudinary…");
           idUrl = await uploadToCloudinary(formData.idFile);
+          console.log("[booking] Cloudinary uploads OK", { licenseUrl, idUrl });
+        } catch (upErr: any) {
+          console.error("[booking] Cloudinary upload failed:", upErr);
+          throw new Error(
+            "Upload failed (Cloudinary). Check VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET, and confirm the preset is set to UNSIGNED.",
+          );
         }
+      } else {
+        console.warn(
+          "[booking] Cloudinary env vars not set — skipping image upload",
+        );
       }
 
       // 2) Optional: send Formspree email with all booking details
@@ -114,11 +152,13 @@ export default function Signup() {
           selectedCar: car!.name,
           plan,
           selectedPrice: `$${price} / ${plan === "weekly" ? "week" : "month"}`,
-          licenseUrl: licenseUrl || "(not uploaded — Cloudinary not configured)",
+          licenseUrl:
+            licenseUrl || "(not uploaded — Cloudinary not configured)",
           idUrl: idUrl || "(not uploaded — Cloudinary not configured)",
         };
         try {
-          await fetch(FORMSPREE_ENDPOINT, {
+          console.log("[booking] Sending Formspree…");
+          const fr = await fetch(FORMSPREE_ENDPOINT, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -126,12 +166,30 @@ export default function Signup() {
             },
             body: JSON.stringify(payload),
           });
+          if (!fr.ok) {
+            console.warn(
+              "[booking] Formspree returned non-OK:",
+              fr.status,
+              await fr.text().catch(() => ""),
+            );
+          } else {
+            console.log("[booking] Formspree OK");
+          }
         } catch (err) {
-          console.warn("Formspree submission failed (continuing):", err);
+          // Non-fatal — continue to Stripe so payment is still possible
+          console.warn(
+            "[booking] Formspree submission failed (continuing to Stripe):",
+            err,
+          );
         }
+      } else {
+        console.warn(
+          "[booking] VITE_FORMSPREE_ENDPOINT not set — skipping email",
+        );
       }
 
       // 3) Create Stripe Checkout subscription session and redirect
+      console.log("[booking] Creating Stripe Checkout session…");
       const res = await fetch("/api/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -147,19 +205,49 @@ export default function Signup() {
         }),
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error || `Checkout failed (${res.status})`);
+        const body = await res.text().catch(() => "");
+        let parsed: any = null;
+        try {
+          parsed = JSON.parse(body);
+        } catch {
+          // not JSON
+        }
+        console.error(
+          "[booking] /api/create-checkout-session failed:",
+          res.status,
+          body,
+        );
+        throw new Error(
+          parsed?.error ||
+            `Payment could not be started (server returned ${res.status}). Make sure STRIPE_SECRET_KEY is set on the server.`,
+        );
       }
       const data = await res.json();
-      if (!data.url) throw new Error("No checkout URL returned");
+      if (!data.url) {
+        throw new Error("Stripe did not return a checkout URL.");
+      }
+      console.log("[booking] Redirecting to Stripe:", data.url);
 
       // Redirect to real Stripe Checkout
       window.location.href = data.url;
     } catch (err: any) {
-      console.error("Submit error:", err);
-      setErrorMsg(err?.message || "Something went wrong. Please try again.");
+      console.error("[booking] Submit error:", err);
+      setErrorMsg(
+        err?.message ||
+          "Something went wrong starting your payment. Please try again.",
+      );
       setSubmitting(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    // Belt-and-braces: even though the submit button is now type="button",
+    // also block any accidental form submission (e.g. user hits Enter inside
+    // an input).
+    e.preventDefault();
+    e.stopPropagation();
+    void submitApplication();
+    return false;
   };
 
   return (
@@ -217,7 +305,7 @@ export default function Signup() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
           {/* Full Name */}
           <div>
             <label className="block text-sm font-semibold text-foreground mb-2">
@@ -230,7 +318,6 @@ export default function Signup() {
               onChange={handleInputChange}
               placeholder="John Doe"
               className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
-              required
               data-testid="signup-fullname"
             />
           </div>
@@ -247,7 +334,6 @@ export default function Signup() {
               onChange={handleInputChange}
               placeholder="john@example.com"
               className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
-              required
               data-testid="signup-email"
             />
           </div>
@@ -264,7 +350,6 @@ export default function Signup() {
               onChange={handleInputChange}
               placeholder="(555) 123-4567"
               className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
-              required
               data-testid="signup-phone"
             />
           </div>
@@ -281,7 +366,6 @@ export default function Signup() {
                 className="hidden"
                 id="license-upload"
                 accept="image/*,.pdf"
-                required
                 data-testid="signup-license-input"
               />
               <label htmlFor="license-upload" className="cursor-pointer">
@@ -310,7 +394,6 @@ export default function Signup() {
                 className="hidden"
                 id="id-upload"
                 accept="image/*,.pdf"
-                required
                 data-testid="signup-id-input"
               />
               <label htmlFor="id-upload" className="cursor-pointer">
@@ -326,17 +409,20 @@ export default function Signup() {
           </div>
 
           {errorMsg && (
-            <p
+            <div
               data-testid="signup-error"
-              className="text-red-600 text-sm font-medium"
+              role="alert"
+              className="flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800"
             >
-              {errorMsg}
-            </p>
+              <span className="text-xl leading-none">⚠</span>
+              <p className="text-sm font-medium">{errorMsg}</p>
+            </div>
           )}
 
           {/* Submit Button */}
           <Button
-            type="submit"
+            type="button"
+            onClick={submitApplication}
             disabled={submitting || !hasSelection}
             data-testid="signup-submit-btn"
             className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-bold text-lg py-3 mt-8 disabled:opacity-60 disabled:cursor-not-allowed"
