@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Navigation } from "@/components/Navigation";
@@ -62,15 +62,66 @@ export default function Signup() {
     [car, plan, price],
   );
 
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    licenseFile: null as File | null,
-    idFile: null as File | null,
+  // localStorage key used to recover form data if the page is reloaded
+  // mid-application (e.g. Stripe redirect cancellation, accidental refresh).
+  // Files cannot be persisted to localStorage so the user re-attaches them.
+  const STORAGE_KEY = "carnextdrive:signup-form";
+
+  const [formData, setFormData] = useState<{
+    fullName: string;
+    email: string;
+    phone: string;
+    licenseFile: File | null;
+    idFile: File | null;
+  }>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw) as Partial<{
+            fullName: string;
+            email: string;
+            phone: string;
+          }>;
+          return {
+            fullName: saved.fullName || "",
+            email: saved.email || "",
+            phone: saved.phone || "",
+            licenseFile: null,
+            idFile: null,
+          };
+        }
+      } catch {
+        // ignore — start fresh
+      }
+    }
+    return {
+      fullName: "",
+      email: "",
+      phone: "",
+      licenseFile: null,
+      idFile: null,
+    };
   });
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Persist text fields to localStorage on every change so an accidental
+  // refresh doesn't wipe what the customer has typed.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          fullName: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
+        }),
+      );
+    } catch {
+      // localStorage may be disabled (private mode) — non-fatal
+    }
+  }, [formData.fullName, formData.email, formData.phone]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,

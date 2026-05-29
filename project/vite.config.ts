@@ -14,6 +14,11 @@ export default defineConfig(({ mode }) => ({
       deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "server/**"],
     },
   },
+  preview: {
+    host: "::",
+    port: 3000,
+    allowedHosts: true,
+  },
   build: {
     outDir: "dist/spa",
   },

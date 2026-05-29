@@ -32,6 +32,12 @@ export default function Success() {
           data.status === "complete"
         ) {
           setStatus("paid");
+          // Wipe any saved signup form data — booking is done.
+          try {
+            window.localStorage.removeItem("carnextdrive:signup-form");
+          } catch {
+            // localStorage unavailable — ignore
+          }
           // Trigger server-side application email (Formspree) as a fallback
           // in case the Stripe webhook isn't configured yet. The server
           // de-duplicates by sessionId so this is safe to call here even
