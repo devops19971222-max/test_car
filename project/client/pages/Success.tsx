@@ -32,6 +32,14 @@ export default function Success() {
           data.status === "complete"
         ) {
           setStatus("paid");
+          // Trigger server-side application email (Formspree) as a fallback
+          // in case the Stripe webhook isn't configured yet. The server
+          // de-duplicates by sessionId so this is safe to call here even
+          // when the webhook also fires.
+          fetch(`/api/notify/${sessionId}`, { method: "POST" })
+            .then((r) => r.json())
+            .then((j) => console.log("[notify] response:", j))
+            .catch((e) => console.warn("[notify] failed:", e));
           return;
         }
         if (data.status === "expired") {

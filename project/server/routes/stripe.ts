@@ -1,5 +1,6 @@
 import { RequestHandler } from "express";
 import Stripe from "stripe";
+import { notifyFromWebhook } from "./notifications";
 
 // Server-side car catalogue: prices live ONLY on the server so the
 // client cannot manipulate amounts. Edit prices here.
@@ -192,6 +193,9 @@ export const stripeWebhook: RequestHandler = async (req, res) => {
         session.customer_email,
         session.metadata,
       );
+      // Fire-and-forget: send the Formspree application email + log it.
+      // notifyFromWebhook is dedup'd by session.id so it's safe.
+      void notifyFromWebhook(session);
       break;
     }
     case "invoice.payment_succeeded":

@@ -11,28 +11,35 @@ const CARS: Record<string, { name: string; weekly: number; monthly: number }> = 
   "3": { name: "Chevy Tahoe", weekly: 479, monthly: 1599 },
 };
 
-// Optional integrations — only used if the corresponding env vars are set.
-const FORMSPREE_ENDPOINT = import.meta.env.VITE_FORMSPREE_ENDPOINT as
-  | string
-  | undefined;
-const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as
-  | string
-  | undefined;
-const CLOUDINARY_UPLOAD_PRESET = import.meta.env
-  .VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined;
-
-async function uploadToCloudinary(file: File): Promise<string | null> {
-  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) return null;
+// Server-side upload: streams the files through our /api/upload endpoint
+// which talks to Cloudinary using server-only credentials. Returns the
+// public Cloudinary URLs that we then attach to the Stripe session.
+async function uploadFilesToServer(
+  licenseFile: File,
+  idFile: File,
+): Promise<{ licenseUrl: string; idUrl: string }> {
   const fd = new FormData();
-  fd.append("file", file);
-  fd.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-  const r = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
-    { method: "POST", body: fd },
-  );
-  if (!r.ok) throw new Error("Cloudinary upload failed");
-  const data = await r.json();
-  return data.secure_url as string;
+  fd.append("license", licenseFile);
+  fd.append("id", idFile);
+  const r = await fetch("/api/upload", { method: "POST", body: fd });
+  if (!r.ok) {
+    const body = await r.text().catch(() => "");
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      // ignore
+    }
+    throw new Error(
+      parsed?.error ||
+        `File upload failed (server returned ${r.status}). Check Cloudinary credentials on the server.`,
+    );
+  }
+  const data = (await r.json()) as { licenseUrl: string; idUrl: string };
+  if (!data.licenseUrl || !data.idUrl) {
+    throw new Error("Upload succeeded but URLs are missing.");
+  }
+  return data;
 }
 
 export default function Signup() {
@@ -116,79 +123,36 @@ export default function Signup() {
       carId,
       plan,
       price,
-      cloudinary: Boolean(CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET),
-      formspree: Boolean(FORMSPREE_ENDPOINT),
     });
 
     try {
-      // 1) Optional: upload license + ID to Cloudinary if configured
-      let licenseUrl: string | null = null;
-      let idUrl: string | null = null;
-      if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
-        try {
-          console.log("[booking] Uploading license to Cloudinary…");
-          licenseUrl = await uploadToCloudinary(formData.licenseFile);
-          console.log("[booking] Uploading ID to Cloudinary…");
-          idUrl = await uploadToCloudinary(formData.idFile);
-          console.log("[booking] Cloudinary uploads OK", { licenseUrl, idUrl });
-        } catch (upErr: any) {
-          console.error("[booking] Cloudinary upload failed:", upErr);
-          throw new Error(
-            "Upload failed (Cloudinary). Check VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET, and confirm the preset is set to UNSIGNED.",
-          );
-        }
-      } else {
-        console.warn(
-          "[booking] Cloudinary env vars not set — skipping image upload",
+      // 1) Upload license + ID to Cloudinary via our server (signed upload).
+      console.log("[booking] Uploading license + ID to server…");
+      let licenseUrl = "";
+      let idUrl = "";
+      try {
+        const up = await uploadFilesToServer(
+          formData.licenseFile,
+          formData.idFile,
+        );
+        licenseUrl = up.licenseUrl;
+        idUrl = up.idUrl;
+        console.log("[booking] Cloudinary uploads OK", { licenseUrl, idUrl });
+      } catch (upErr: any) {
+        console.error("[booking] Upload failed:", upErr);
+        throw new Error(
+          upErr?.message ||
+            "We couldn't upload your documents. Please try again.",
         );
       }
 
-      // 2) Optional: send Formspree email with all booking details
-      if (FORMSPREE_ENDPOINT) {
-        const payload = {
-          fullName: formData.fullName,
-          email: formData.email,
-          phone: formData.phone,
-          selectedCar: car!.name,
-          plan,
-          selectedPrice: `$${price} / ${plan === "weekly" ? "week" : "month"}`,
-          licenseUrl:
-            licenseUrl || "(not uploaded — Cloudinary not configured)",
-          idUrl: idUrl || "(not uploaded — Cloudinary not configured)",
-        };
-        try {
-          console.log("[booking] Sending Formspree…");
-          const fr = await fetch(FORMSPREE_ENDPOINT, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-            body: JSON.stringify(payload),
-          });
-          if (!fr.ok) {
-            console.warn(
-              "[booking] Formspree returned non-OK:",
-              fr.status,
-              await fr.text().catch(() => ""),
-            );
-          } else {
-            console.log("[booking] Formspree OK");
-          }
-        } catch (err) {
-          // Non-fatal — continue to Stripe so payment is still possible
-          console.warn(
-            "[booking] Formspree submission failed (continuing to Stripe):",
-            err,
-          );
-        }
-      } else {
-        console.warn(
-          "[booking] VITE_FORMSPREE_ENDPOINT not set — skipping email",
-        );
-      }
+      // 2) Formspree email is sent SERVER-SIDE after Stripe confirms payment
+      //    (see /api/notify/:sessionId and the Stripe webhook). No client
+      //    Formspree call here.
 
-      // 3) Create Stripe Checkout subscription session and redirect
+      // 3) Create Stripe Checkout subscription session and redirect.
+      //    The license/ID URLs travel along in session metadata so the
+      //    backend can include them in the application email.
       console.log("[booking] Creating Stripe Checkout session…");
       const res = await fetch("/api/create-checkout-session", {
         method: "POST",
@@ -199,8 +163,8 @@ export default function Signup() {
           customerEmail: formData.email,
           customerName: formData.fullName,
           phone: formData.phone,
-          licenseUrl: licenseUrl || "",
-          idUrl: idUrl || "",
+          licenseUrl,
+          idUrl,
           originUrl: window.location.origin,
         }),
       });

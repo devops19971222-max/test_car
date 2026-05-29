@@ -8,6 +8,11 @@ import {
   stripeWebhook,
   getCarPricing,
 } from "./routes/stripe";
+import {
+  uploadHandler,
+  uploadMiddleware,
+  notifyHandler,
+} from "./routes/notifications";
 
 export function createServer() {
   const app = express();
@@ -22,8 +27,8 @@ export function createServer() {
     stripeWebhook,
   );
 
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: "20mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
   // Example API routes
   app.get("/api/ping", (_req, res) => {
@@ -37,6 +42,10 @@ export function createServer() {
   app.post("/api/create-checkout-session", createCheckoutSession);
   app.get("/api/checkout-status/:sessionId", getCheckoutStatus);
   app.get("/api/cars", getCarPricing);
+
+  // Cloudinary uploads + Formspree notifications
+  app.post("/api/upload", uploadMiddleware, uploadHandler);
+  app.post("/api/notify/:sessionId", notifyHandler);
 
   return app;
 }
