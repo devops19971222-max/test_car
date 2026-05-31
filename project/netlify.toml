@@ -3,10 +3,36 @@ command = "npm run build:client"
 functions = "netlify/functions"
 publish = "dist/spa"
 
+[build.environment]
+# Pin Node to a version that has built-in fetch (used by the notification
+# code) and that Netlify Functions support natively.
+NODE_VERSION = "20"
+# Force npm even if pnpm-lock.yaml is present — the Netlify function
+# bundler doesn't understand pnpm's symlinked node_modules layout, which
+# is why "Cannot find module 'express'" happens even though express is
+# in dependencies. Forcing npm gives a flat node_modules that
+# zip-it-and-ship-it can read.
+NPM_FLAGS = "--include=optional"
+NETLIFY_USE_PNPM = "false"
 
 [functions]
-external_node_modules = ["express"]
+# List every npm package that is `import`ed or `require`d at runtime by
+# the function. esbuild keeps them external and Netlify packages each
+# one's node_modules folder alongside the bundled handler. If a runtime
+# import is missing from this list AND has tricky internals (dynamic
+# require, native bindings, etc.) the bundle can throw at cold-start
+# with "Cannot find module 'X'".
+external_node_modules = [
+  "express",
+  "cors",
+  "serverless-http",
+  "stripe",
+  "cloudinary",
+  "multer",
+  "dotenv",
+]
 node_bundler = "esbuild"
+
 [[redirects]]
 force = true
 from = "/api/*"
