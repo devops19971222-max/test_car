@@ -7,6 +7,7 @@ publish = "dist/spa"
 # Pin Node to a version that has built-in fetch (used by the notification
 # code) and that Netlify Functions support natively.
 NODE_VERSION = "20"
+
 # Force npm even if pnpm-lock.yaml is present — the Netlify function
 # bundler doesn't understand pnpm's symlinked node_modules layout, which
 # is why "Cannot find module 'express'" happens even though express is
@@ -31,6 +32,7 @@ external_node_modules = [
   "multer",
   "dotenv",
 ]
+
 node_bundler = "esbuild"
 
 [[redirects]]
@@ -38,3 +40,8 @@ force = true
 from = "/api/*"
 status = 200
 to = "/.netlify/functions/api/:splat"
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
