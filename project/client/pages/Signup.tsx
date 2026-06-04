@@ -4,32 +4,25 @@ import { Button } from "@/components/ui/button";
 import { Navigation } from "@/components/Navigation";
 import { Upload, Loader2 } from "lucide-react";
 
-// Catalog (display only — server is authoritative)
 const CARS: Record<string, { name: string; weekly: number; monthly: number }> = {
   "1": { name: "Chrysler 200", weekly: 349, monthly: 1199 },
   "2": { name: "Chevy Camaro", weekly: 399, monthly: 1349 },
   "3": { name: "Chevy Tahoe", weekly: 479, monthly: 1599 },
 };
 
-// Cloudinary cloud name
-const CLOUDINARY_CLOUD_NAME =
-  (typeof import.meta !== "undefined" &&
-    (import.meta as any).env?.VITE_CLOUDINARY_CLOUD_NAME) ||
-  "drlo4xvo8";
+const CLOUDINARY_CLOUD_NAME = "drlo4xvo8";
 
-// Direct client-side upload to Cloudinary using unsigned preset.
-// Requires unsigned upload preset named exactly: carnextdrive-uploads
 async function uploadFilesToServer(
   licenseFile: File,
   idFile: File,
 ): Promise<{ licenseUrl: string; idUrl: string }> {
-  const uploadToCloudinary = async (file: File): Promise<string> => {
+  const uploadOne = async (file: File): Promise<string> => {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("upload_preset", "carnextdrive-uploads");
 
     const r = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
+      "https://api.cloudinary.com/v1_1/" + CLOUDINARY_CLOUD_NAME + "/auto/upload",
       { method: "POST", body: fd },
     );
 
@@ -41,9 +34,12 @@ async function uploadFilesToServer(
       } catch {
         // ignore
       }
+
       throw new Error(
         parsed?.error?.message ||
-          `Cloudinary upload failed (${r.status}). Check your upload preset and cloud name.`,
+          "Cloudinary upload failed (" +
+            r.status +
+            "). Check your upload preset and cloud name.",
       );
     }
 
@@ -51,13 +47,12 @@ async function uploadFilesToServer(
     if (!data.secure_url) {
       throw new Error("Cloudinary upload succeeded but no URL was returned.");
     }
+
     return data.secure_url as string;
   };
 
-  const [licenseUrl, idUrl] = await Promise.all([
-    uploadToCloudinary(licenseFile),
-    uploadToCloudinary(idFile),
-  ]);
+  const licenseUrl = await uploadOne(licenseFile);
+  const idUrl = await uploadOne(idFile);
 
   return { licenseUrl, idUrl };
 }
