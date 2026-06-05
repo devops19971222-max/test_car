@@ -16,45 +16,39 @@ async function uploadFilesToServer(
   licenseFile: File,
   idFile: File,
 ): Promise<{ licenseUrl: string; idUrl: string }> {
-  const uploadOne = async (file: File): Promise<string> => {
+  const uploadUrl =
+    "https://api.cloudinary.com/v1_1/" + CLOUDINARY_CLOUD_NAME + "/auto/upload";
+
+  async function uploadOne(file: File): Promise<string> {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("upload_preset", "carnextdrive-uploads");
 
-    const r = await fetch(
-      "https://api.cloudinary.com/v1_1/" + CLOUDINARY_CLOUD_NAME + "/auto/upload",
-      { method: "POST", body: fd },
-    );
+    const r = await fetch(uploadUrl, {
+      method: "POST",
+      body: fd,
+    });
 
     if (!r.ok) {
-      const body = await r.text().catch(() => "");
-      let parsed: any = null;
-      try {
-        parsed = JSON.parse(body);
-      } catch {
-        // ignore
-      }
-
-      throw new Error(
-        parsed?.error?.message ||
-          "Cloudinary upload failed (" +
-            r.status +
-            "). Check your upload preset and cloud name.",
-      );
+      const body = await r.text().catch(function () {
+        return "";
+      });
+      throw new Error("Upload failed: " + body);
     }
 
-    const data = await r.json();
+    const data = (await r.json()) as { secure_url: string };
+
     if (!data.secure_url) {
-      throw new Error("Cloudinary upload succeeded but no URL was returned.");
+      throw new Error("Upload succeeded but URL is missing.");
     }
 
-    return data.secure_url as string;
-  };
+    return data.secure_url;
+  }
 
   const licenseUrl = await uploadOne(licenseFile);
   const idUrl = await uploadOne(idFile);
 
-  return { licenseUrl, idUrl };
+  return { licenseUrl: licenseUrl, idUrl: idUrl };
 }
 
 export default function Signup() {
