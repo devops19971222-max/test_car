@@ -115,6 +115,7 @@ Open the site in a browser and confirm the homepage loads.
 
 | Symptom | Likely fix |
 |---------|------------|
+| "Payment could not be started (server returned 500)" | Add `STRIPE_SECRET_KEY` in Vercel env vars, then **Redeploy** |
 | "Stripe is not configured" | Set `STRIPE_SECRET_KEY` in Vercel, redeploy |
 | Upload failed | Check Cloudinary preset `carnextdrive-uploads` on cloud `drlo4xvo8` |
 | Success page error | API not reachable — check `/api/ping` |

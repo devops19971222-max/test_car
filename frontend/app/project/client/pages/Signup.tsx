@@ -216,9 +216,13 @@ export default function Signup() {
         } catch {
           // not JSON
         }
-        throw new Error(
+        const detail =
           parsed?.error ||
-            `Payment could not be started (server returned ${res.status}). Make sure STRIPE_SECRET_KEY is set on the server.`,
+          (body && body.length < 200 ? body : "") ||
+          "";
+        throw new Error(
+          detail ||
+            `Payment could not be started (server returned ${res.status}). Add STRIPE_SECRET_KEY in Vercel → Settings → Environment Variables, then redeploy.`,
         );
       }
 
