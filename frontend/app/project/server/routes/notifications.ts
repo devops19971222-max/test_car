@@ -104,7 +104,12 @@ export const uploadHandler: RequestHandler = async (req, res) => {
 // of spam).
 const notifiedSessions = new Set<string>();
 
-const DATA_DIR = "/app/project/.data";
+// Emergent uses /app/project/.data; serverless hosts (Vercel/Netlify) use /tmp.
+const DATA_DIR =
+  process.env.DATA_DIR ||
+  (process.env.VERCEL || process.env.NETLIFY
+    ? "/tmp/carnextdrive"
+    : "/app/project/.data");
 const LOG_PATH = path.join(DATA_DIR, "applications.jsonl");
 
 async function loadNotifiedFromDisk() {
