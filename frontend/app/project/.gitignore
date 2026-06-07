@@ -28,6 +28,7 @@ node_modules/
 dist/
 api/index.mjs
 api/index.mjs.map
+api/_handler.mjs.map
 build/
 .netlify/
 .vite/
