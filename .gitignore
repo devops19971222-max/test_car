@@ -7,3 +7,5 @@ credentials.json
 .credentials
 frontend/package-lock.json
 backend/__pycache__/
+frontend/app/project/node_modules/
+frontend/app/project/.env
