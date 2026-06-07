@@ -1,18 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build:client && npm run build:serverless",
+  "buildCommand": "npm run build:client",
   "installCommand": "npm install",
   "outputDirectory": "dist/spa",
   "framework": null,
-  "functions": {
-    "api/index.js": {
-      "maxDuration": 30,
-      "memory": 1024,
-      "includeFiles": "api/index.mjs"
-    }
-  },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/api/(.*)", "destination": "/app.ts" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
