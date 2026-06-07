@@ -5,6 +5,8 @@ credentials.json
 *.pem
 *.key
 .credentials
+node_modules/
+package-lock.json
 frontend/package-lock.json
 backend/__pycache__/
 frontend/app/project/node_modules/
