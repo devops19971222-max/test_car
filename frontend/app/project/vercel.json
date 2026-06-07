@@ -5,10 +5,10 @@
   "outputDirectory": "dist/spa",
   "framework": null,
   "functions": {
-    "api/index.ts": {
+    "api/index.js": {
       "maxDuration": 30,
-      "includeFiles": "dist/serverless/**",
-      "memory": 1024
+      "memory": 1024,
+      "includeFiles": "api/index.mjs"
     }
   },
   "rewrites": [

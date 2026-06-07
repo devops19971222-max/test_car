@@ -19,22 +19,21 @@ const nodeBuiltins = [
   "worker_threads",
 ];
 
-// Bundle the Express app for Vercel's serverless runtime.
 export default defineConfig({
   build: {
     ssr: true,
     outDir: "dist/serverless",
     emptyOutDir: true,
     lib: {
-      entry: path.resolve(__dirname, "server/index.ts"),
+      entry: path.resolve(__dirname, "server/vercel-entry.ts"),
       formats: ["es"],
-      fileName: "handler",
+      fileName: "_handler",
     },
     rollupOptions: {
       external: nodeBuiltins.map((m) => [m, `node:${m}`]).flat(),
       output: {
         format: "es",
-        entryFileNames: "handler.mjs",
+        entryFileNames: "_handler.mjs",
       },
     },
     minify: false,

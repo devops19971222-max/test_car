@@ -26,6 +26,8 @@ node_modules/
 # Build outputs
 # ─────────────────────────────────────────────
 dist/
+api/index.mjs
+api/index.mjs.map
 build/
 .netlify/
 .vite/

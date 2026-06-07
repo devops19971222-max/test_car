@@ -1,5 +1,10 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import express from "express";
+
+// Vercel injects env vars; dotenv is only for local dev.
+if (!process.env.VERCEL) {
+  loadEnv();
+}
 import cors from "cors";
 import { handleDemo } from "./routes/demo";
 import {
